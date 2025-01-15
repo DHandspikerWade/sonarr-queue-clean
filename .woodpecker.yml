@@ -1,0 +1,39 @@
+steps:
+- name: Build  
+  image: woodpeckerci/plugin-docker-buildx
+  settings:
+    repo: registry.lan.spikedhand.com/local/sonarr-clean
+    registry: registry.lan.spikedhand.com
+    tags: latest
+    auto_labels: false
+    platforms: linux/amd64
+    pull_image: true
+  when:
+    branch:
+    - ${CI_REPO_DEFAULT_BRANCH}
+    event: [push, manual]
+
+- name: deploy
+  image: handspiker2/ci-tools:docker
+  environment:
+    KUBERNETES_SERVER:
+      from_secret: kubernetes_server
+    KUBERNETES_TOKEN:
+      from_secret: kubernetes_token
+    KUBERNETES_CERT:
+      from_secret: kubernetes_cert
+    NAMESPACE: 
+      from_secret: kubernetes_namespace
+  commands:
+    - SHA256_TAG=$$(skopeo inspect docker://registry.lan.spikedhand.com/local/sonarr-clean:latest | jq -r .Digest)
+    - kubectl config set-credentials default --token=$$(echo "$$KUBERNETES_TOKEN"  | base64 -d)
+    - echo $$KUBERNETES_CERT | base64 -d > ca.crt
+    - kubectl config set-cluster default --server=$$KUBERNETES_SERVER --certificate-authority=ca.crt
+    - kubectl config set-context default --cluster=default --user=default
+    - kubectl config use-context default
+    - 'echo "INFO: Starting Kubernetes resources update"'
+    - kubectl -n $$NAMESPACE set image cronjob/sonarr-clean task=registry.lan.spikedhand.com/local/sonarr-clean@$$SHA256_TAG
+  when:
+    branch:
+    - ${CI_REPO_DEFAULT_BRANCH}
+    event: [push, manual]
