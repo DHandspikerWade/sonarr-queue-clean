@@ -86,14 +86,21 @@ if ($queue_data['totalRecords'] > 0) {
             continue;
         }
 
-        if (strtolower($item['status']) == 'delay') {
+        $torrent_status = strtolower($item['status']);
+
+        if ($torrent_status == 'delay') {
+            continue;
+        }
+
+        // Stopped/paused downloads shouldn't be considered failed
+        if ($torrent_status == 'paused') {
             continue;
         }
 
         $valid_ids[] = (string) $item['id'];
 
         if (
-            (strtolower($item['status']) != 'queued' && ($item['sizeleft'] > 0 && $item['size'] > 1))
+            ($torrent_status != 'queued' && ($item['sizeleft'] > 0 && $item['size'] > 1))
             || ($item['sizeleft'] == 0 && $item['size'] == 0) // Handle torrents don't ever start in qbittorrent
         ) {
             $updateHistory($item['downloadId'], $item['id'], $item['sizeleft'], $item['title']);
